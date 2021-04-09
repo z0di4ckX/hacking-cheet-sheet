@@ -1,0 +1,17 @@
+La capacidad de cargar archivos en un servidor se ha convertido en una parte integral de cómo interactuamos con las aplicaciones web. 
+Ya sea una imagen de perfil para un sitio web de redes sociales, un informe que se está cargando en el almacenamiento en la nube o el guardado de un proyecto en Github;
+las aplicaciones para las funciones de carga de archivos son ilimitadas.
+
+Desafortunadamente, cuando se maneja mal, la carga de archivos también puede abrir vulnerabilidades graves en el servidor.
+Esto puede llevar a cualquier cosa, desde molestias relativamente menores; todo el camino hasta la ejecución remota de código (RCE) completa si un atacante logra cargar y ejecutar un shell.
+Con acceso de carga sin restricciones a un servidor (y la capacidad de recuperar datos a voluntad), un atacante podría desfigurar o alterar el contenido existente, hasta e incluyendo la inyección de páginas web maliciosas, lo que conduce a más vulnerabilidades como XSS o CSRF. Al cargar archivos arbitrarios, un atacante también podría usar el servidor para alojar y / o entregar contenido ilegal o para filtrar información confidencial. 
+Hablando de manera realista, un atacante con la capacidad de cargar un archivo de su elección en su servidor, sin restricciones, es realmente muy peligroso.
+
+El propósito de esta sala es explorar algunas de las vulnerabilidades resultantes del manejo inadecuado (o inadecuado) de la carga de archivos. Específicamente, analizaremos:
+ - Sobrescribir archivos existentes en un servidor
+ - Cargar y ejecutar shells en un servidor
+ - Omitir el filtrado del lado del cliente
+ - Omitir varios tipos de filtrado del lado del servidor
+ - Verificaciones de validación del tipo de contenido engañoso
+¡Vamos a empezar!
+

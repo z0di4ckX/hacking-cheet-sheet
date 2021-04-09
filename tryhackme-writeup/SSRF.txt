@@ -1,0 +1,162 @@
+Visión general
+---------------
+
+Esta sala se enfocará en brindarle una comprensión detallada de lo que es una vulnerabilidad de server-side forgery request, 
+mejor conocida como SSRF , y cómo puede descubrir si un sitio web es vulnerable a cualquier forma de SSRF, 
+y cómo un  El atacante puede aprovechar la SSRF en su propio beneficio.
+
+¿Qué es la SSRF?
+----------------
+
+En términos más simples, SSRF es una vulnerabilidad en las aplicaciones web mediante la cual un atacante puede realizar más solicitudes HTTP a través  del servidor. 
+Un atacante puede hacer uso de esta vulnerabilidad para comunicarse con cualquier servicio interno en la red del servidor que generalmente está protegido por firewalls.
+
+Ahora, si se enfoca en el diagrama anterior, en un caso normal, 
+el atacante solo podría visitar el sitio web y ver los  datos del sitio web. 
+El servidor que ejecuta el sitio web puede comunicarse con la base de datos interna de GitLab o Postgres, 
+pero  el usuario no puede hacerlo, porque el firewall en el medio solo permite el acceso a los puertos 80 (HTTP) y 443 (HTTPS). 
+Sin embargo, SSRF le daría a un atacante el poder de hacer una conexión a Postgres y ver sus datos conectándose primero al  servidor del sitio web y luego usándolo para conectarse a la base de datos. 
+Postgres pensaría que el sitio web está solicitando  algo de la base de datos, pero en realidad, es el atacante haciendo uso de una vulnerabilidad SSRF en el sitio web para obtener el datos. 
+El proceso normalmente sería algo como esto: un atacante encuentra una vulnerabilidad SSRF en un sitio web. 
+El firewall  permite todas las solicitudes al sitio web. Luego, el atacante aprovecha la vulnerabilidad SSRF obligando al servidor web a solicitar  datos de la base de datos, que luego devuelve al atacante. 
+Debido a que la solicitud proviene del servidor web, 
+en lugar  de directamente del atacante, el firewall permite que esto pase.
+
+En la tarea 1 entendimos qué es SSRF, por lo que ahora veremos qué causa una vulnerabilidad SSRF. 
+¿Cuáles son los errores cometidos  por los desarrolladores que hacen que un sitio web / aplicación sea vulnerable a SSRF?
+---------------------------------------------------------------------------------------------------------------------------------------------------
+Causa de la vulnerabilidad
+---------------------------
+
+La principal causa de la vulnerabilidad es (como suele suceder) confiar ciegamente en la entrada de un usuario. 
+En el caso de una vulnerabilidad SSRF, se le pedirá al usuario que ingrese una URL (o tal vez una dirección IP). 
+La aplicación web lo usaría para realizar  una solicitud. SSRF se produce cuando la entrada no se ha verificado o filtrado correctamente.
+
+Veamos un código vulnerable:
+
+Ejemplo 1: PHP
+----------------
+
+Suponga que hay una aplicación que toma la URL de una imagen, que luego muestra la página web. 
+El  código SSRF vulnerable se vería así:
+
+<?php
+
+if (isset($_GET['url']))
+
+{
+  $url = $_GET['url'];
+  $image = fopen($url, 'rb');
+  header("Content-Type: image/png");
+  fpassthru($image);
+
+}
+
+Este es un código PHP simple que verifica si hay información enviada en un parámetro 'url' y luego, sin realizar ningún tipo de  verificación, el código simplemente realiza una solicitud a la URL enviada por el usuario. 
+Los atacantes esencialmente tienen el control total de la URL  y pueden realizar solicitudes GET arbitrarias a cualquier sitio web en Internet a través del servidor, además de acceder a los recursos  en el propio servidor.
+
+Ejemplo 2 : Python
+------------------
+
+desde el matraz de importación Matraz, solicitud, render_template, redireccionar
+solicitudes de importación
+
+from flask import Flask, request,  render_template, redirect
+import requests
+
+app = Flask(__name__)
+
+@app.route("/")
+def start():
+    url = request.args.get("id")
+    r = requests.head(url, timeout=2.000)
+    return render_template("index.html", result = r.content)
+
+if __name__ == "__main__":
+      app.run(host = '0.0.0.0')
+
+
+El ejemplo anterior muestra una aplicación de matraz muy pequeño que hace lo mismo:
+
+1) Toma el valor del parámetro "url".
+
+2) Luego realiza una solicitud a la URL dada y muestra el contenido de esa URL al usuario.
+
+Nuevamente vemos que no hay desinfección ni ningún tipo de verificación realizada en la entrada del usuario. Es por eso que siempre debe probar tantas cargas útiles diferentes como pueda al probar una aplicación.
+
+Hablando de cargas útiles, en la siguiente tarea, veremos qué tipo de cargas útiles se utilizan en SSRF.
+---------------------------------------------------------------------------------------------------------
+Ahora vamos a aprender qué tipo de cargas útiles se utilizan para explotar una vulnerabilidad SSRF. Para entender esto, usaremos una demostración en vivo. Conectar ahttp://MACHINE_IP:5000
+
+La página nos da la opción de ingresar una URL, que nos buscará.
+
+Cargas útiles básicas
+---------------------
+
+Comencemos con la carga útil básica. Esta carga útil podría darte una pista de que existe una vulnerabilidad SSRF y darte una  pista sobre qué cargas útiles deberías probar a continuación.
+
+Inicialmente, comience buscando la IP del host local (127.0.0.1) con cualquier puerto para ver si el puerto está ejecutando un servicio. Digamos que desea verificar si el servidor tiene una base de datos oculta, puede buscar http://127.0.0.1:3306, 3306 es el  puerto para MySQL DB, por lo que si hay una base de datos en ejecución, es probable que obtenga una respuesta positiva.
+
+Si probamos esta carga útil en nuestra VM, veremos el siguiente resultado:
+
+Esto muestra que el puerto 3306 está abierto.
+
+De manera similar, también podríamos haber usado "localhost" o "0.0.0.0" en lugar de 127.0.0.1
+
+Cargas útiles avanzadas
+-----------------------
+
+Ahora es muy posible que se aplique algún tipo de desinfección a la entrada, por lo que el sistema podría detectar cadenas  como "localhost" o "127.0.0.1" y detener la solicitud. Dicho esto, es posible intentar eludir ese tipo de restricciones.
+
+La primera forma es probar la versión IPv6 del localhost, es decir, [::]. Entonces, la carga útil de antes se vería así  http://[::]:3306.
+
+La página básica con la que ya hemos trabajado no tiene ningún filtro, así que para probar estas cargas útiles avanzadas, dirígete a http://MACHINE_IP:5000/advanced. La página es muy similar a la anterior, pero notarás que si  pruebas la carga útil básica la detecta como "Código malicioso".
+
+Pruébelo usted mismo: intente ingresar las cargas útiles antiguas como " http://127.0.0.1:3306" o http://localhost:3306 obtendrá  algo como:
+
+Como era de esperar, esto se debe a que existen comprobaciones SSRF, pero aún es posible omitirlas. También es posible que si intenta acceder http://[::]:3306, obtenga "objetivo no alcanzable". Cuando esto sucede, puede  ser el resultado de cómo el marco maneja la entrada en la aplicación. Si fuera una aplicación PHP, esto funcionaría,  pero flask / Django podría interpretar estas cargas útiles de manera diferente. Si falla con esa carga útil, intente eliminar los corchetes (es decir, intente  http://:::3306): recuerde que el tercer punto indica la separación entre el puerto y la IP.
+
+Entonces, si ingresamos: http://:::3306 vemos algo como:
+
+Es posible que también se detecte la carga útil de IPv6. En ese caso lo que solemos hacer es codificar nuestra IP: ya sea en formato decimal o en formato hexadecimal.
+
+La IP " 127.0.0.1" se puede reemplazar con sus contrapartes Decimal y Hexadecimal para evitar las restricciones. La versión decimal de la IP del host local sería "2130706433" y la versión hexadecimal sería "0x7f000001".
+
+Nota : hay un script para realizar este proceso de conversión, lo puede encontrar aquí
+
+Leyendo archivos
+----------------
+
+El escaneo de puertos no es lo único que hacemos con SSRF; también podemos leer archivos del servidor, pero solo si usamos el  esquema adecuado (es decir, para una solicitud HTTP, comenzaríamos la URL con "http: //" - de manera similar si comenzamos la URL con  "file: //" intentaría leer los archivos desde el propio servidor).
+
+Entonces, por ejemplo, una carga útil de lectura de un archivo SSRF simple sería file:///etc/passwdleer el archivo / etc / passwd en una máquina Linux  .
+
+Para ver que esto suceda por usted mismo, vaya a http://MACHINE_IP:5000/filessrf, obtendrá otro formulario muy similar al  de los tutoriales avanzados y básicos de SSRF, pero una diferencia que notará es que puede ingresar "file: //" en este .
+
+Entonces, si ahora intentamos leer el archivo, podremos ver el contenido:
+
+Explicación
+------------
+Cuando visitamos el puerto 8000 vemos un campo de entrada simple. Ahora, si prueba todas las cargas útiles básicas, obtendrá el error de código malicioso.
+
+Si prueba el formato IPv6, obtendrá un error similar.
+
+En este punto, parece que el sistema podría no ser vulnerable a SSRF en absoluto; pero antes de darnos por vencidos, deberíamos intentar usar el  método de conversión decimal / hexadecimal.
+
+Usaremos el script (es decir, ip2dh.py) para convertir la IP 127.0.0.1 a decimal, lo que nos daría 2130706433. Ahora, si lo desea, puede usar esta IP y el puerto 3306 para probar si funciona o no.
+
+Dicho esto, no podemos comprobar todos los puertos por nosotros mismos. En su lugar, crearemos un pequeño script bash que hará el trabajo  por nosotros.
+
+Nota: Si no está interesado en escribir un script bash, entonces puede usar el módulo Intruder de Burpsuite, pero en esta  explicación, le mostraré cómo usar bash para tareas más pequeñas como estas. 
+
+for x in {1..65535};
+    do cmd=$(curl -so /dev/null http://MACHINE_IP:8000/attack?url=http://2130706433:${x} \
+        -w '%{size_download}');
+    if [ $cmd != 1045 ]; then
+        echo "Open port: $x"
+    fi
+done
+
+Lo principal que hay que entender aquí es el comando curl. Si ejecutara este comando curl por sí solo con un puerto como  3306, le daría el tamaño en bytes de la respuesta, que, para una respuesta válida, en este caso es 1042. Sin embargo, si lo  ejecutamos con alguna puerto, digamos 54321, mostraría un tamaño de retorno de 1046 bytes, ya que la respuesta del sitio web será  ligeramente diferente. Esto significa que para los puertos que no son accesibles obtenemos el tamaño 1045 y para un puerto que está abierto obtenemos el  tamaño 1042. Sobre esa base, podemos escribir un script para escanear cada puerto y decirnos cuando el tamaño no es de 1045 bytes. . Este script le dirá que 5 puertos (22, 3306, 5000, 8000, 6783) están abiertos.
+
+En términos de la pregunta de lectura de archivos, puede usar el esquema predeterminado "file: //" para leer archivos del sistema.

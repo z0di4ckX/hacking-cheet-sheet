@@ -1,0 +1,38 @@
+Local File Inclusion (LFI) es la vulnerabilidad que se encuentra principalmente en los servidores web. Esta vulnerabilidad se aprovecha cuando la entrada de un usuario contiene una determinada ruta al archivo que podría estar presente en el servidor y se incluirá en la salida. Este tipo de vulnerabilidad se puede utilizar para leer archivos que contienen datos sensibles y confidenciales del sistema vulnerable.
+
+La principal causa de este tipo de vulnerabilidad es la desinfección inadecuada de la entrada del usuario. La desinfección aquí significa que cualquier entrada del usuario debe verificarse y debe asegurarse de que solo se pasen los valores esperados y no se proporcione nada sospechoso en la entrada. Es un tipo de vulnerabilidad que se encuentra comúnmente en sitios web basados ​​en PHP, pero no se limita a ellos.
+
+Para probar LFI, lo que necesitamos es un parámetro en cualquier URL o cualquier otro campo de entrada como el cuerpo de la solicitud, etc. 
+Por ejemplo, si el sitio web es tryhackme.com, entonces un parámetro en la URL puede verse así https://tryhackme.com/?file=robots.txt. 
+Aquí fileestá el nombre del parámetro y robots.txtes el valor que estamos pasando ( incluya el archivo robots.txt).
+
+Importancia de la lectura arbitraria de archivos
+------------------------------------------------
+Gran parte del tiempo, LFI puede conducir al acceso (sin los permisos adecuados) a datos importantes y clasificados. 
+Un atacante puede usar LFI para leer archivos de su sistema que pueden revelar información confidencial como contraseñas / claves SSH; 
+Los datos enumerados se pueden utilizar más para comprometer el sistema.
+
+En esta tarea, vamos a encontrar el parámetro que es vulnerable al ataque de inclusión de archivos locales. 
+Luego intentaremos aprovechar la información obtenida para acceder al sistema.
+
+Una vez que encontremos el parámetro vulnerable, podemos intentar incluir el archivo passwd en el sistema Linux, es decir, / etc / passwd. 
+La técnica más común es el método de recorrido de ruta, lo que significa que podemos incluir archivos como ../../../../etc/passwd 
+¿Qué obtiene esto de un directorio como solemos hacer en el sistema Linux ejecutando cd ..? /
+
+../../etc/passwd significa salir dos veces del directorio de trabajo actual y luego ir aldirectorio / etc y leer elarchivo passwd. 
+Ahora, el problema con este método es que debe estar seguro de la ruta del archivo.
+
+Una vez que incluya / etc / passwd , debería ver entradas como:
+
+root: x: 0: 0 :: / root: / bin / bash
+bin: x: 1: 1 :: /: / sbin / nologin demonio: x: 2: 2 :: /: / sbin / nologin
+
+Para comprender todas esas entradas, lea este artículo.
+
+En esto, nos centraremos en obtener acceso a nivel de raíz en la máquina. 
+Este paso también se conoce como escalada de privilegios; vamos a escalar nuestro privilegio de un usuario normal a un usuario root (con el nivel más alto de privilegios del sistema).
+
+Primero, tendremos que encontrar un vector que se explote para darnos acceso de root. 
+Un vector puede ser cualquier cosa como un binario con algún permiso especial o un cronjob que no está configurado correctamente, etc.
+
+Escribí una publicación de blog sobre la escalada de privilegios de Linux, puede leerla aquí para saber más al respecto.
